@@ -1,0 +1,47 @@
+Technical Validation Report
+Generated: 2025-07-17 12:32:02
+Video file: sovkombank_30sec.mxf
+==================================================
+
+TECHNICAL REQUIREMENTS REFERENCE:
+- Container format: MXF
+- Video codec: MPEG Video
+- Resolution: 1920x1080
+- Frame rate: 25 fps
+- Aspect ratio: 16:9
+- Scan type: Interlaced
+- Bit depth: 8 bit
+- Color space: YUV
+- Chroma subsampling: 4:2:2
+- Bitrate: 50 Mbps
+- Audio format: PCM
+- Audio channels: 2
+- Audio sample rate: 48 kHz
+- Audio bit depth: 24 bit
+
+==================================================
+
+VALIDATION RESULTS:
+Container: OK (MXF)
+Video Codec: OK (MPEG Video)
+Resolution: OK (1920x1080)
+Frame Rate: OK (25.0 fps)
+Aspect Ratio: FAIL (1.778)
+Scan Type: FAIL (Progressive)
+Bit Depth: OK (8)
+Color Space: OK (YUV)
+Chroma Subsampling: FAIL (4:2:0)
+Bitrate: FAIL (200000)
+Audio Tracks: FAIL (1)
+Audio 1 Format: OK (PCM)
+Audio 1 Sample Rate: OK (48000)
+Audio 1 Bit Depth: FAIL (16)
+
+==================================================
+SUMMARY:
+Total checks: 14
+Passed: 8
+Failed: 6
+Success rate: 57.1%
+
+❌ 6 TECHNICAL REQUIREMENT(S) FAILED
