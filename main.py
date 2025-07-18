@@ -506,7 +506,7 @@ def main() -> None:
 
         try:
             ai_report = ai_legal_validate(file_path,
-                                          "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",
+                                          "",
                                           all_reports_dir)
             print("\n[AI] OpenAI Legal Compliance Analysis:\n")
             print(ai_report)
