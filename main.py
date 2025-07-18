@@ -1,5 +1,6 @@
 import os
 import sys
+
 from pymediainfo import MediaInfo
 import openai
 import whisper
@@ -9,17 +10,18 @@ import cv2
 import easyocr
 from pyzbar.pyzbar import decode as decode_qr
 from PIL import Image
+
 import json
 from datetime import datetime
 import warnings
 import shutil
 
 
-# Подавление warnings
+# Подавление warnings.
 warnings.filterwarnings('ignore')
 
 
-# Подавление специфических warnings
+# Подавление специфических warnings.
 import logging
 
 logging.getLogger('moviepy').setLevel(logging.ERROR)
@@ -27,7 +29,7 @@ logging.getLogger('whisper').setLevel(logging.ERROR)
 logging.getLogger('easyocr').setLevel(logging.ERROR)
 
 
-# Отключение предупреждений OpenCV
+# Отключение предупреждений OpenCV.
 cv2.setUseOptimized(True)
 os.environ['OPENCV_VIDEOIO_PRIORITY_MSMF'] = '0'
 
@@ -55,14 +57,21 @@ AUDIO_REQUIREMENTS = {
 }
 
 
-def validate_video(file_path):
+def validate_video(file_path: str) -> list[str]:
+    """
+    Проверяет видеофайл на соответствие техническим требованиям.
+    Args:
+        file_path (str): Путь к видеофайлу.
+    Returns:
+        list[str]: Список строк с результатами проверки.
+    """
     report = []
     media_info = MediaInfo.parse(file_path)
     video_tracks = [t for t in media_info.tracks if t.track_type == 'Video']
     audio_tracks = [t for t in media_info.tracks if t.track_type == 'Audio']
     general_track = next((t for t in media_info.tracks if t.track_type == 'General'), None)
 
-    # Container
+    # Container.
     if general_track:
         container = general_track.format
         if VIDEO_REQUIREMENTS['container_format'] in container:
@@ -72,23 +81,23 @@ def validate_video(file_path):
     else:
         report.append("Container: FAIL (not found)")
 
-    # Video
+    # Video.
     if video_tracks:
         v = video_tracks[0]
 
-        # Codec
+        # Codec.
         if VIDEO_REQUIREMENTS['video_codec'] in (v.format or ''):
             report.append(f"Video Codec: OK ({v.format})")
         else:
             report.append(f"Video Codec: FAIL ({v.format})")
 
-        # Resolution
+        # Resolution.
         if v.width == VIDEO_REQUIREMENTS['width'] and v.height == VIDEO_REQUIREMENTS['height']:
             report.append(f"Resolution: OK ({v.width}x{v.height})")
         else:
             report.append(f"Resolution: FAIL ({v.width}x{v.height})")
 
-        # Frame rate
+        # Frame rate.
         try:
             fr = float(v.frame_rate)
         except:
@@ -98,31 +107,31 @@ def validate_video(file_path):
         else:
             report.append(f"Frame Rate: FAIL ({v.frame_rate})")
 
-        # Aspect ratio
+        # Aspect ratio.
         if v.display_aspect_ratio == VIDEO_REQUIREMENTS['aspect_ratio']:
             report.append(f"Aspect Ratio: OK ({v.display_aspect_ratio})")
         else:
             report.append(f"Aspect Ratio: FAIL ({v.display_aspect_ratio})")
 
-        # Scan type
+        # Scan type.
         if v.scan_type and VIDEO_REQUIREMENTS['scan_type'].lower() in v.scan_type.lower():
             report.append(f"Scan Type: OK ({v.scan_type})")
         else:
             report.append(f"Scan Type: FAIL ({v.scan_type})")
 
-        # Bit depth
+        # Bit depth.
         if v.bit_depth and int(v.bit_depth) == VIDEO_REQUIREMENTS['bit_depth']:
             report.append(f"Bit Depth: OK ({v.bit_depth})")
         else:
             report.append(f"Bit Depth: FAIL ({v.bit_depth})")
 
-        # Color space
+        # Color space.
         if v.color_space and VIDEO_REQUIREMENTS['color_space'] in v.color_space:
             report.append(f"Color Space: OK ({v.color_space})")
         else:
             report.append(f"Color Space: FAIL ({v.color_space})")
 
-        # Chroma subsampling
+        # Chroma subsampling.
         if v.chroma_subsampling and VIDEO_REQUIREMENTS['chroma_subsampling'] in v.chroma_subsampling:
             report.append(f"Chroma Subsampling: OK ({v.chroma_subsampling})")
         else:
@@ -140,26 +149,26 @@ def validate_video(file_path):
     else:
         report.append("Video Track: FAIL (not found)")
 
-    # Audio
+    # Audio.
     if len(audio_tracks) == AUDIO_REQUIREMENTS['channels']:
         report.append(f"Audio Tracks: OK ({len(audio_tracks)})")
     else:
         report.append(f"Audio Tracks: FAIL ({len(audio_tracks)})")
     for idx, a in enumerate(audio_tracks):
 
-        # Format
+        # Format.
         if AUDIO_REQUIREMENTS['format'] in (a.format or ''):
             report.append(f"Audio {idx + 1} Format: OK ({a.format})")
         else:
             report.append(f"Audio {idx + 1} Format: FAIL ({a.format})")
 
-        # Sample rate
+        # Sample rate.
         if a.sampling_rate and int(a.sampling_rate) == AUDIO_REQUIREMENTS['sample_rate']:
             report.append(f"Audio {idx + 1} Sample Rate: OK ({a.sampling_rate})")
         else:
             report.append(f"Audio {idx + 1} Sample Rate: FAIL ({a.sampling_rate})")
 
-        # Bit depth
+        # Bit depth.
         if a.bit_depth and int(a.bit_depth) == AUDIO_REQUIREMENTS['bit_depth']:
             report.append(f"Audio {idx + 1} Bit Depth: OK ({a.bit_depth})")
         else:
@@ -167,18 +176,39 @@ def validate_video(file_path):
     return report
 
 
-def extract_audio(video_path, audio_path):
+def extract_audio(video_path: str, audio_path: str) -> None:
+    """
+    Извлекает аудиодорожку из видеофайла и сохраняет её в указанный путь.
+    Args:
+        video_path (str): Путь к видеофайлу.
+        audio_path (str): Путь для сохранения аудиофайла.
+    """
     clip = VideoFileClip(video_path)
     clip.audio.write_audiofile(audio_path)
 
 
-def transcribe_audio(audio_path):
+def transcribe_audio(audio_path: str) -> str:
+    """
+    Транскрибирует аудиофайл с помощью Whisper.
+    Args:
+        audio_path (str): Путь к аудиофайлу.
+    Returns:
+        str: Транскрипция аудио.
+    """
     model = whisper.load_model("base")
     result = model.transcribe(audio_path, language='ru')
     return result['text']
 
 
-def extract_frames(video_path, interval_sec=1):
+def extract_frames(video_path: str, interval_sec: int = 1) -> list:
+    """
+    Извлекает кадры из видео с заданным интервалом в секундах.
+    Args:
+        video_path (str): Путь к видеофайлу.
+        interval_sec (int, optional): Интервал между кадрами в секундах. По умолчанию 1.
+    Returns:
+        list: Список кадров (numpy.ndarray).
+    """
     vidcap = cv2.VideoCapture(video_path)
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     frames = []
@@ -195,7 +225,14 @@ def extract_frames(video_path, interval_sec=1):
     return frames
 
 
-def ocr_text_from_frames(frames):
+def ocr_text_from_frames(frames: list) -> list[str]:
+    """
+    Выполняет OCR для каждого кадра и возвращает найденные текстовые фрагменты.
+    Args:
+        frames (list): Список кадров (numpy.ndarray).
+    Returns:
+        list[str]: Список найденных текстов.
+    """
     reader = easyocr.Reader(['ru', 'en'])
     texts = []
     for frame in frames:
@@ -204,7 +241,14 @@ def ocr_text_from_frames(frames):
     return texts
 
 
-def detect_qr_codes(frames):
+def detect_qr_codes(frames: list) -> list[dict]:
+    """
+    Детектирует QR-коды на кадрах.
+    Args:
+        frames (list): Список кадров (numpy.ndarray).
+    Returns:
+        list[dict]: Список словарей с информацией о QR-кодах (номер кадра и данные).
+    """
     qr_results = []
     for idx, frame in enumerate(frames):
         pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -214,10 +258,20 @@ def detect_qr_codes(frames):
     return qr_results
 
 
-def legal_ai_check(transcript, ocr_texts, qr_results, openai_api_key):
+def legal_ai_check(transcript: str, ocr_texts: list[str], qr_results: list[dict], openai_api_key: str) -> str:
+    """
+    Проверяет соответствие видео юридическим требованиям с помощью OpenAI.
+    Args:
+        transcript (str): Транскрипция аудио.
+        ocr_texts (list[str]): Тексты, найденные на кадрах.
+        qr_results (list[dict]): Найденные QR-коды.
+        openai_api_key (str): Ключ OpenAI API.
+    Returns:
+        str: Ответ OpenAI с анализом соответствия.
+    """
     client = openai.OpenAI(api_key=openai_api_key)
 
-    # Read legal requirements from file
+    # Read legal requirements from file.
     with open('legal_requirements.txt', 'r', encoding='utf-8') as f:
         legal_requirements = f.read()
 
@@ -234,7 +288,7 @@ def legal_ai_check(transcript, ocr_texts, qr_results, openai_api_key):
 QR-коды:
 {qr_results}
 
-Проверьте, соблюдены ли требования. Для каждого требования укажите: OK/FAIL и комментарий.
+Проверь, соблюдены ли требования. Для каждого требования укажи: OK/FAIL и комментарий.
 """
 
     response = client.chat.completions.create(
@@ -247,7 +301,16 @@ QR-коды:
     return response.choices[0].message.content
 
 
-def save_technical_validation_report(file_path, validation_report, report_dir):
+def save_technical_validation_report(file_path: str, validation_report: list[str], report_dir: str) -> str:
+    """
+    Сохраняет технический отчёт о валидации в папку отчётов.
+    Args:
+        file_path (str): Путь к видеофайлу.
+        validation_report (list[str]): Результаты проверки.
+        report_dir (str): Папка для сохранения отчёта.
+    Returns:
+        str: Путь к сохранённому отчёту.
+    """
     """Save technical validation report to report folder"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     tech_report_filename = os.path.join(report_dir, f"technical_validation_{timestamp}.txt")
@@ -258,7 +321,7 @@ def save_technical_validation_report(file_path, validation_report, report_dir):
         f.write(f"Video file: {file_path}\n")
         f.write("=" * 50 + "\n\n")
 
-        # Add technical requirements reference
+        # Add technical requirements reference.
         f.write("TECHNICAL REQUIREMENTS REFERENCE:\n")
         f.write("- Container format: MXF\n")
         f.write("- Video codec: MPEG Video\n")
@@ -276,12 +339,12 @@ def save_technical_validation_report(file_path, validation_report, report_dir):
         f.write("- Audio bit depth: 24 bit\n")
         f.write("\n" + "=" * 50 + "\n\n")
 
-        # Add validation results
+        # Add validation results.
         f.write("VALIDATION RESULTS:\n")
         for line in validation_report:
             f.write(line + "\n")
 
-        # Add summary
+        # Add summary.
         f.write("\n" + "=" * 50 + "\n")
         f.write("SUMMARY:\n")
         ok_count = sum(1 for line in validation_report if "OK" in line)
@@ -301,7 +364,16 @@ def save_technical_validation_report(file_path, validation_report, report_dir):
     return tech_report_filename
 
 
-def ai_legal_validate(video_path, openai_api_key, report_dir):
+def ai_legal_validate(video_path: str, openai_api_key: str, report_dir: str) -> str:
+    """
+    Выполняет полный цикл AI-анализа юридических требований для видеофайла.
+    Args:
+        video_path (str): Путь к видеофайлу.
+        openai_api_key (str): Ключ OpenAI API.
+        report_dir (str): Папка для сохранения отчёта.
+    Returns:
+        str: Текст отчёта OpenAI.
+    """
     import tempfile
     audio_path = None
 
@@ -329,7 +401,7 @@ def ai_legal_validate(video_path, openai_api_key, report_dir):
         print("[AI] Sending data to OpenAI for legal compliance check...")
         report = legal_ai_check(transcript, ocr_texts, qr_results, openai_api_key)
 
-        # Save AI report to report_dir
+        # Save AI report to report_dir.
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         ai_report_filename = os.path.join(report_dir, f"openai_analysis_{timestamp}.txt")
@@ -347,14 +419,18 @@ def ai_legal_validate(video_path, openai_api_key, report_dir):
     return report
 
 
-def main():
-    file_path = "sovkombank_30sec.mxf"
+def main() -> None:
+    """
+    Основная функция: выполняет техническую и юридическую валидацию видеофайла,
+    сохраняет результаты и формирует папки для анализа.
+    """
+    file_path = "sovkombank_10sec.mxf"
     base_name = os.path.splitext(os.path.basename(file_path))[0]
     to_openai_dir = f"{base_name}_to_openai_api"
     extracted_media_dir = f"{base_name}_extracted_media"
     all_reports_dir = f"{base_name}_all_reports"
 
-    # Создать папки, если их нет
+    # Создать папки, если их нет.
     os.makedirs(to_openai_dir, exist_ok=True)
     os.makedirs(extracted_media_dir, exist_ok=True)
     os.makedirs(all_reports_dir, exist_ok=True)
@@ -362,17 +438,17 @@ def main():
         print(f"File not found: {file_path}")
         sys.exit(1)
 
-    # Run validation
+    # Run validation.
     print("[TECH] Starting technical validation...")
     validation_report = validate_video(file_path)
     print("\nValidation Report:")
     for line in validation_report:
         print(line)
 
-    # Save technical validation report to all_reports_dir
+    # Save technical validation report to all_reports_dir.
     tech_report_filename = save_technical_validation_report(file_path, validation_report, all_reports_dir)
 
-    # Collect data for analysis
+    # Collect data for analysis.
     print("\nCollecting data for analysis...")
     with tempfile.TemporaryDirectory() as tmpdir:
         audio_path = os.path.join(tmpdir, "audio.wav")
@@ -382,7 +458,7 @@ def main():
         ocr_texts = ocr_text_from_frames(frames)
         qr_results = detect_qr_codes(frames)
 
-        # Сохраняем фреймы в extracted_media_dir
+        # Сохраняем фреймы в extracted_media_dir.
         frames_dir = os.path.join(extracted_media_dir, "frames")
         os.makedirs(frames_dir, exist_ok=True)
 
@@ -390,11 +466,11 @@ def main():
             img_path = os.path.join(frames_dir, f"frame_{idx:04d}.jpg")
             cv2.imwrite(img_path, frame)
 
-        # Копируем аудиофайл в extracted_media_dir
+        # Копируем аудиофайл в extracted_media_dir.
         audio_out_path = os.path.join(extracted_media_dir, "audio.wav")
         shutil.copy(audio_path, audio_out_path)
 
-        # Сохраняем текстовые файлы для анализа в to_openai_dir
+        # Сохраняем текстовые файлы для анализа в to_openai_dir.
         with open(os.path.join(to_openai_dir, "validation_report.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(validation_report))
         with open(os.path.join(to_openai_dir, "transcript.txt"), "w", encoding="utf-8") as f:
@@ -404,16 +480,16 @@ def main():
         with open(os.path.join(to_openai_dir, "qr_codes.json"), "w", encoding="utf-8") as f:
             json.dump(qr_results, f, indent=2, ensure_ascii=False)
 
-        # Читаем требования
+        # Читаем требования.
         with open("legal_requirements.txt", "r", encoding="utf-8") as f:
             legal_req = f.read()
         with open("technical_requirements.txt", "r", encoding="utf-8") as f:
             tech_req = f.read()
 
-        # Формируем промпт
+        # Формируем промпт.
         prompt = f"""ТРЕБОВАНИЯ (ЮРИДИЧЕСКИЕ):\n{legal_req}\n\nТРЕБОВАНИЯ (ТЕХНИЧЕСКИЕ):\n{tech_req}\n\nДАННЫЕ ДЛЯ АНАЛИЗА:\n\n1. ТЕХНИЧЕСКАЯ ВАЛИДАЦИЯ:\n{chr(10).join(validation_report)}\n\n2. ТРАНСКРИПЦИЯ АУДИО:\n{transcript}\n\n3. ТЕКСТ С ЭКРАНА (OCR):\n{chr(10).join(ocr_texts)}\n\n4. QR-КОДЫ:\n{json.dumps(qr_results, indent=2, ensure_ascii=False)}\n\nЗАДАЧА:\nПроверьте соответствие видео требованиям из файлов legal_requirements.txt и technical_requirements.txt. Для каждого требования укажите: OK/FAIL и подробный комментарий.\n"""
 
-        # Сохраняем промпт в обе папки
+        # Сохраняем промпт в обе папки.
         with open(os.path.join(to_openai_dir, "prompt.txt"), "w", encoding="utf-8") as f:
             f.write(prompt)
         with open(os.path.join(extracted_media_dir, "prompt.txt"), "w", encoding="utf-8") as f:
@@ -425,12 +501,12 @@ def main():
             f"\nВ {to_openai_dir} содержатся:\n  • validation_report.txt\n  • transcript.txt\n  • ocr_results.txt\n  • qr_codes.json\n  • prompt.txt")
         print(f"\nВ {extracted_media_dir} содержатся:\n  • frames/ (все кадры)\n  • audio.wav\n  • prompt.txt")
 
-        # AI анализ через OpenAI API (только текстовые данные)
+        # AI анализ через OpenAI API (только текстовые данные).
         ai_report = None
 
         try:
             ai_report = ai_legal_validate(file_path,
-                                          "",
+                                          "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",
                                           all_reports_dir)
             print("\n[AI] OpenAI Legal Compliance Analysis:\n")
             print(ai_report)
